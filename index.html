@@ -13,7 +13,7 @@
     -webkit-user-select: none; user-select: none;
     -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
-    font-family: -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     transition: background 0.8s ease;
   }
   #face { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: block; }
@@ -127,7 +127,7 @@
     statusEl.textContent = cfg.showStatus ? (t || '') : '';
   }
 
-  /* ---------- نظام الصوت المحسّن بدون تقطيش ---------- */
+  /* ---------- نظام الصوت المتوافق مع iOS 15 ومحسّن للبفر ---------- */
   var actx = null, stream = null, proc = null, analyser = null, timeData = null;
   var nextPlay = 0;
   var audioQueue = [];
@@ -139,12 +139,16 @@
 
   async function initAudio() {
     if (actx) { if (actx.state === 'suspended') { try { await actx.resume(); } catch (e) {} } return; }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error('المتصفح لا يدعم الميكروفون أو الصفحة ليست على HTTPS');
-    }
+    
     var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) throw new Error('المتصفح لا يدعم الصوت الشبكي');
     var c = new AC();
     try { await c.resume(); } catch (e) {}
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('المتصفح لا يدعم الميكروفون أو أذونات HTTPS');
+    }
+
     var st = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }
     });
@@ -352,7 +356,7 @@
       return;
     }
     setMic(true);
-    if (actx.state === 'suspended') { try { await actx.resume(); } catch (e) {} }
+    if (actx && actx.state === 'suspended') { try { await actx.resume(); } catch (e) {} }
     openSession(true);
   }
 
@@ -420,7 +424,7 @@
   hot.addEventListener('pointercancel', holdEnd);
   hot.addEventListener('pointerleave', holdEnd);
 
-  /* ---------- الرسم والأنيميشن والعينين المربعتين ---------- */
+  /* ---------- رسم العيون الكاملة باللون الأبيض والأسود والحدقة المطابقة للصورة ---------- */
   function resize() {
     var d = window.devicePixelRatio || 1;
     var r = canvas.getBoundingClientRect();
@@ -433,58 +437,135 @@
   var blinkStart = -1, nextBlink = 1500;
   var gazeX = 0, gazeY = 0, gazeTX = 0, gazeTY = 0, nextGaze = 0;
 
-  var currentEyeColor = '#8fdcff';
+  var accentColor = '#38b6ff'; // اللون السماوي للربط والحواجب
 
-  // دالة رسم عين مربعة بزوايا انحناء ناعمة
-  function squareEye(x, y, size, open, color) {
+  // دالة رسم بيضاوي رسمية متوافقة مع المتصفحات القديمة (iOS 15 Safari)
+  function drawEllipse(ctx, x, y, rx, ry) {
+    ctx.beginPath();
+    if (ctx.ellipse) {
+      ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+    } else {
+      // إرجاع متوافق في حال غياب دالة ellipse
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(rx, ry);
+      ctx.arc(0, 0, 1, 0, Math.PI * 2);
+      ctx.restore();
+    }
+  }
+
+  // رسم العين الكاملة مثل الصورة تماماً
+  function drawRealisticEye(cx, cy, radiusX, radiusY, gazeOffsetX, gazeOffsetY, blinkScale) {
+    g.save();
+    g.translate(cx, cy);
+    g.scale(1, Math.max(0.04, blinkScale));
+
+    // 1. بياض العين البيضاوي الكبير
+    drawEllipse(g, 0, 0, radiusX, radiusY);
+    g.fillStyle = '#FFFFFF';
+    g.fill();
+    g.lineWidth = 2;
+    g.strokeStyle = '#1a1a1a';
+    g.stroke();
+
+    if (blinkScale > 0.1) {
+      // 2. حدقة العين (القزحية والبؤبؤ)
+      var irisX = gazeOffsetX * 0.8;
+      var irisY = gazeOffsetY * 0.8;
+      var irisRadius = radiusY * 0.58;
+
+      // أ- الحلقة الخارجية للقزحية (أزرق سماوي ناعم)
+      g.beginPath();
+      g.arc(irisX, irisY, irisRadius, 0, Math.PI * 2);
+      g.fillStyle = '#2b78c5';
+      g.fill();
+
+      // ب- القزحية الداخلية (بني دافئ/عسلي)
+      g.beginPath();
+      g.arc(irisX, irisY, irisRadius * 0.85, 0, Math.PI * 2);
+      var grad = g.createRadialGradient(irisX, irisY, 0, irisX, irisY, irisRadius * 0.85);
+      grad.addColorStop(0, '#5a2a0a');
+      grad.addColorStop(0.7, '#803c0d');
+      grad.addColorStop(1, '#3b1803');
+      g.fillStyle = grad;
+      g.fill();
+
+      // ج- الحلقة البرتقالية المحيطة بالبؤبؤ
+      g.beginPath();
+      g.arc(irisX, irisY, irisRadius * 0.45, 0, Math.PI * 2);
+      g.fillStyle = '#d97724';
+      g.fill();
+
+      // د- البؤبؤ الأسود في المنتصف
+      g.beginPath();
+      g.arc(irisX, irisY, irisRadius * 0.32, 0, Math.PI * 2);
+      g.fillStyle = '#0a0a0d';
+      g.fill();
+
+      // هـ- لمعة العين البيضاء العلوية (Reflection 1)
+      g.beginPath();
+      g.arc(irisX - irisRadius * 0.32, irisY - irisRadius * 0.32, irisRadius * 0.22, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      g.fill();
+
+      // و- لمعة العين البيضاء السفلية الصغرى (Reflection 2)
+      g.beginPath();
+      g.arc(irisX + irisRadius * 0.3, irisY + irisRadius * 0.3, irisRadius * 0.1, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(255, 255, 255, 0.75)';
+      g.fill();
+    }
+
+    g.restore();
+  }
+
+  // رسم الحاجب السماوي مثل الصورة تماماً
+  function drawEyebrow(x, y, w, h, angle, color) {
     g.save();
     g.translate(x, y);
-    g.scale(1, Math.max(0.06, open));
-    
-    var half = size;
-    var radius = size * 0.25; // انحناء الزوايا
-    
+    g.rotate(angle);
+
     g.beginPath();
-    g.roundRect(-half, -half, half * 2, half * 2, radius);
-    g.fillStyle = color;
+    g.moveTo(-w / 2, 0);
+    g.bezierCurveTo(-w / 4, -h, w / 4, -h, w / 2, 0);
+    g.bezierCurveTo(w / 4, -h * 0.3, -w / 4, -h * 0.3, -w / 2, 0);
+    g.closePath();
+
+    var grad = g.createLinearGradient(-w / 2, 0, w / 2, 0);
+    grad.addColorStop(0, color);
+    grad.addColorStop(0.5, '#7dd3fc');
+    grad.addColorStop(1, color);
+
+    g.fillStyle = grad;
     g.shadowColor = color;
-    g.shadowBlur = 18;
+    g.shadowBlur = 10;
     g.fill();
     g.restore();
   }
 
-  function closedEye(x, y, size, s, color) {
-    g.beginPath();
-    g.moveTo(x - size, y);
-    g.lineTo(x + size, y);
-    g.lineWidth = 3.5 * s;
-    g.lineCap = 'round';
-    g.strokeStyle = color;
-    g.shadowColor = color;
-    g.shadowBlur = 12;
-    g.stroke();
-  }
-
+  // رسم الفم البسيط الملون
   function mouth(cx, my, s, open, smile, color) {
-    var hw = 16 * s;
+    var hw = 18 * s;
+    g.save();
     g.beginPath();
     g.moveTo(cx - hw, my);
     g.quadraticCurveTo(cx, my + smile, cx + hw, my);
+
     if (open > 0.6 * s) {
       g.quadraticCurveTo(cx, my + smile + open * 1.8, cx - hw, my);
       g.closePath();
       g.fillStyle = color;
       g.shadowColor = color;
-      g.shadowBlur = 15;
+      g.shadowBlur = 12;
       g.fill();
     } else {
-      g.lineWidth = 3.2 * s;
+      g.lineWidth = 4 * s;
       g.lineCap = 'round';
       g.strokeStyle = color;
       g.shadowColor = color;
       g.shadowBlur = 10;
       g.stroke();
     }
+    g.restore();
   }
 
   function draw(t) {
@@ -494,7 +575,7 @@
 
     mode = computeMode();
     var s = Math.min(w, h * 1.7) / 100;
-    var cx = w / 2, cy = h / 2 - 3 * s;
+    var cx = w / 2, cy = h / 2 - 2 * s;
 
     // حساب مستوى الصوت
     var target = 0;
@@ -506,62 +587,78 @@
     }
     level += (target - level) * 0.35;
 
-    // تغيير ألوان الشاشة والخلفية ديناميكياً
+    // ألوان الخلفية المبهجة وتفاعل الحواجب
     if (mode === 'speaking') {
       var hue = (t * 0.12) % 360;
       var bgHue = (hue + 180) % 360;
       document.body.style.background = 'radial-gradient(circle at center, hsl(' + bgHue + ', 40%, 15%) 0%, #000000 90%)';
-      currentEyeColor = 'hsl(' + hue + ', 100%, 72%)';
+      accentColor = 'hsl(' + hue + ', 100%, 65%)';
     } else {
       document.body.style.background = '#000000';
-      currentEyeColor = '#8fdcff';
+      accentColor = '#38b6ff';
     }
 
     g.clearRect(0, 0, w, h);
 
-    // نظرات العينين
+    // حركات ونظرات العينين العشوائية
     if (t > nextGaze) {
-      gazeTX = (Math.random() - 0.5) * 6 * s;
-      gazeTY = (Math.random() - 0.5) * 3 * s;
+      gazeTX = (Math.random() - 0.5) * 8 * s;
+      gazeTY = (Math.random() - 0.5) * 4 * s;
       nextGaze = t + 1400 + Math.random() * 2600;
     }
     var thinking = mode === 'thinking';
-    var gx = thinking ? 4 * s : gazeTX;
-    var gy = thinking ? -5 * s : gazeTY;
+    var gx = thinking ? 5 * s : gazeTX;
+    var gy = thinking ? -6 * s : gazeTY;
     gazeX += (gx - gazeX) * 0.12;
     gazeY += (gy - gazeY) * 0.12;
 
-    // رمش العينين
+    // أنيميشن الرمش
     if (blinkStart < 0 && t > nextBlink) blinkStart = t;
     var blink = 1;
     if (blinkStart >= 0) {
-      var ph = (t - blinkStart) / 170;
+      var ph = (t - blinkStart) / 160;
       if (ph >= 1) { blinkStart = -1; nextBlink = t + 2500 + Math.random() * 3500; }
-      else blink = 1 - 0.93 * Math.sin(Math.PI * ph);
+      else blink = 1 - 0.95 * Math.sin(Math.PI * ph);
     }
 
-    var ex = 22 * s, ey = cy - 4 * s, er = 9.5 * s;
-    var scale = 1, smile = 12 * s, open = 0;
+    // إحداثيات ومقاسات العيون المماثلة للصورة
+    var eyeSpacing = 24 * s;
+    var eyeY = cy - 2 * s;
+    var radiusX = 14 * s;
+    var radiusY = 17 * s;
+
+    var browW = 20 * s;
+    var browH = 9 * s;
+    var browY = eyeY - radiusY - 8 * s;
+
+    var smile = 14 * s, open = 0;
+
+    if (mode === 'speaking') {
+      smile = (12 + level * 6) * s;
+      open = level * 12 * s;
+    }
 
     if (mode === 'sleep') {
-      var br = 1 + 0.03 * Math.sin(t / 900);
-      closedEye(cx - ex, ey, er * br, s, currentEyeColor);
-      closedEye(cx + ex, ey, er * br, s, currentEyeColor);
-      mouth(cx, cy + 20 * s, s, 0, 11 * s, currentEyeColor);
+      // رسم العين المغلقة في حالة التوقف
+      drawRealisticEye(cx - eyeSpacing, eyeY, radiusX, radiusY, 0, 0, 0.05);
+      drawRealisticEye(cx + eyeSpacing, eyeY, radiusX, radiusY, 0, 0, 0.05);
+      drawEyebrow(cx - eyeSpacing, browY + 4 * s, browW, browH * 0.7, 0.05, accentColor);
+      drawEyebrow(cx + eyeSpacing, browY + 4 * s, browW, browH * 0.7, -0.05, accentColor);
+      mouth(cx, cy + 24 * s, s, 0, 10 * s, accentColor);
     } else {
-      if (mode === 'hearing') scale = 1.15;
-      else if (mode === 'thinking') scale = 0.95;
-      else if (mode === 'connecting') scale = 0.92 + 0.08 * Math.sin(t / 250);
-      else if (mode === 'speaking') scale = 1 + 0.08 * level;
+      // العينان المكتملتان
+      drawRealisticEye(cx - eyeSpacing, eyeY, radiusX, radiusY, gazeX, gazeY, blink);
+      drawRealisticEye(cx + eyeSpacing, eyeY, radiusX, radiusY, gazeX, gazeY, blink);
 
-      if (mode === 'hearing') smile = 15 * s;
-      if (mode === 'speaking') { smile = (12 + level * 6) * s; open = level * 12 * s; }
-      if (mode === 'thinking') smile = 7 * s;
+      // الحواجب المرتفعة والتفاعلية
+      var browAngleLeft = -0.12 + (gazeY * 0.01);
+      var browAngleRight = 0.12 - (gazeY * 0.01);
 
-      var size = er * scale;
-      squareEye(cx - ex + gazeX, ey + gazeY, size, blink, currentEyeColor);
-      squareEye(cx + ex + gazeX, ey + gazeY, size, blink, currentEyeColor);
-      mouth(cx + gazeX * 0.3, cy + 20 * s, s, open, smile, currentEyeColor);
+      drawEyebrow(cx - eyeSpacing + gazeX * 0.3, browY + gazeY * 0.3, browW, browH, browAngleLeft, accentColor);
+      drawEyebrow(cx + eyeSpacing + gazeX * 0.3, browY + gazeY * 0.3, browW, browH, browAngleRight, accentColor);
+
+      // الفم
+      mouth(cx + gazeX * 0.2, cy + 24 * s, s, open, smile, accentColor);
     }
 
     hintEl.style.opacity = (mode === 'sleep' && !panelOpen) ? '1' : '0';
