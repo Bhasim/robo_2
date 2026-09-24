@@ -89,7 +89,6 @@
 (function () {
   'use strict';
 
-  /* ---------- الإعدادات الافتراضية ---------- */
   var DEFAULT_MODEL = 'gemini-2.0-flash-exp';
   var DEFAULT_PROMPT =
     'أنت «روبو»، صديق ومرح للأطفال. ' +
@@ -99,7 +98,6 @@
   var GREETING = 'رحّب بالطفل بجملة قصيرة ومرحة.';
   var VOICE_RMS = 0.02;
 
-  /* ---------- تخزين محلي آمن ---------- */
   var store = {
     get: function (k, d) { try { var v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
     set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -111,7 +109,6 @@
     showStatus: store.get('robo_status', '1') === '1'
   };
 
-  /* ---------- عناصر الصفحة ---------- */
   var canvas = document.getElementById('face');
   var g = canvas.getContext('2d');
   var statusEl = document.getElementById('status');
@@ -127,7 +124,6 @@
     statusEl.textContent = cfg.showStatus ? (t || '') : '';
   }
 
-  /* ---------- نظام الصوت المتوافق مع iOS 15 ومحسّن للبفر ---------- */
   var actx = null, stream = null, proc = null, analyser = null, timeData = null;
   var nextPlay = 0;
   var audioQueue = [];
@@ -257,7 +253,6 @@
     nextPlay = 0;
   }
 
-  /* ---------- الاتصال بـ Gemini Live ---------- */
   var ws = null, ready = false, connecting = false;
   var lastVoice = 0, heardSinceReply = false;
   var msgQueue = Promise.resolve();
@@ -360,7 +355,6 @@
     openSession(true);
   }
 
-  /* ---------- اللمس والتحكم ---------- */
   var panelOpen = false;
   var lastTap = 0;
 
@@ -389,7 +383,6 @@
     goToSleep('متوقف');
   });
 
-  /* ---------- نافذة الإعدادات ---------- */
   function openPanel() {
     fKey.value = cfg.key;
     fModel.value = cfg.model;
@@ -424,7 +417,6 @@
   hot.addEventListener('pointercancel', holdEnd);
   hot.addEventListener('pointerleave', holdEnd);
 
-  /* ---------- رسم العيون الكاملة باللون الأبيض والأسود والحدقة المطابقة للصورة ---------- */
   function resize() {
     var d = window.devicePixelRatio || 1;
     var r = canvas.getBoundingClientRect();
@@ -436,16 +428,13 @@
   var level = 0;
   var blinkStart = -1, nextBlink = 1500;
   var gazeX = 0, gazeY = 0, gazeTX = 0, gazeTY = 0, nextGaze = 0;
+  var accentColor = '#38b6ff';
 
-  var accentColor = '#38b6ff'; // اللون السماوي للربط والحواجب
-
-  // دالة رسم بيضاوي رسمية متوافقة مع المتصفحات القديمة (iOS 15 Safari)
   function drawEllipse(ctx, x, y, rx, ry) {
     ctx.beginPath();
     if (ctx.ellipse) {
       ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
     } else {
-      // إرجاع متوافق في حال غياب دالة ellipse
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(rx, ry);
@@ -454,13 +443,11 @@
     }
   }
 
-  // رسم العين الكاملة مثل الصورة تماماً
   function drawRealisticEye(cx, cy, radiusX, radiusY, gazeOffsetX, gazeOffsetY, blinkScale) {
     g.save();
     g.translate(cx, cy);
     g.scale(1, Math.max(0.04, blinkScale));
 
-    // 1. بياض العين البيضاوي الكبير
     drawEllipse(g, 0, 0, radiusX, radiusY);
     g.fillStyle = '#FFFFFF';
     g.fill();
@@ -469,18 +456,15 @@
     g.stroke();
 
     if (blinkScale > 0.1) {
-      // 2. حدقة العين (القزحية والبؤبؤ)
       var irisX = gazeOffsetX * 0.8;
       var irisY = gazeOffsetY * 0.8;
       var irisRadius = radiusY * 0.58;
 
-      // أ- الحلقة الخارجية للقزحية (أزرق سماوي ناعم)
       g.beginPath();
       g.arc(irisX, irisY, irisRadius, 0, Math.PI * 2);
       g.fillStyle = '#2b78c5';
       g.fill();
 
-      // ب- القزحية الداخلية (بني دافئ/عسلي)
       g.beginPath();
       g.arc(irisX, irisY, irisRadius * 0.85, 0, Math.PI * 2);
       var grad = g.createRadialGradient(irisX, irisY, 0, irisX, irisY, irisRadius * 0.85);
@@ -490,25 +474,21 @@
       g.fillStyle = grad;
       g.fill();
 
-      // ج- الحلقة البرتقالية المحيطة بالبؤبؤ
       g.beginPath();
       g.arc(irisX, irisY, irisRadius * 0.45, 0, Math.PI * 2);
       g.fillStyle = '#d97724';
       g.fill();
 
-      // د- البؤبؤ الأسود في المنتصف
       g.beginPath();
       g.arc(irisX, irisY, irisRadius * 0.32, 0, Math.PI * 2);
       g.fillStyle = '#0a0a0d';
       g.fill();
 
-      // هـ- لمعة العين البيضاء العلوية (Reflection 1)
       g.beginPath();
       g.arc(irisX - irisRadius * 0.32, irisY - irisRadius * 0.32, irisRadius * 0.22, 0, Math.PI * 2);
       g.fillStyle = 'rgba(255, 255, 255, 0.95)';
       g.fill();
 
-      // و- لمعة العين البيضاء السفلية الصغرى (Reflection 2)
       g.beginPath();
       g.arc(irisX + irisRadius * 0.3, irisY + irisRadius * 0.3, irisRadius * 0.1, 0, Math.PI * 2);
       g.fillStyle = 'rgba(255, 255, 255, 0.75)';
@@ -518,7 +498,6 @@
     g.restore();
   }
 
-  // رسم الحاجب السماوي مثل الصورة تماماً
   function drawEyebrow(x, y, w, h, angle, color) {
     g.save();
     g.translate(x, y);
@@ -542,7 +521,6 @@
     g.restore();
   }
 
-  // رسم الفم البسيط الملون
   function mouth(cx, my, s, open, smile, color) {
     var hw = 18 * s;
     g.save();
@@ -574,10 +552,14 @@
     g.setTransform(1, 0, 0, 1, 0, 0);
 
     mode = computeMode();
-    var s = Math.min(w, h * 1.7) / 100;
-    var cx = w / 2, cy = h / 2 - 2 * s;
+    
+    /* تعديل القياس لملاءمة الشاشة في الوضعين الرأسي والأفقي */
+    var isLandscape = w > h;
+    var s = isLandscape ? (h / 85) : Math.min(w / 60, h / 90);
 
-    // حساب مستوى الصوت
+    var cx = w / 2;
+    var cy = h / 2;
+
     var target = 0;
     if (mode === 'speaking' && analyser) {
       analyser.getByteTimeDomainData(timeData);
@@ -587,7 +569,6 @@
     }
     level += (target - level) * 0.35;
 
-    // ألوان الخلفية المبهجة وتفاعل الحواجب
     if (mode === 'speaking') {
       var hue = (t * 0.12) % 360;
       var bgHue = (hue + 180) % 360;
@@ -600,19 +581,17 @@
 
     g.clearRect(0, 0, w, h);
 
-    // حركات ونظرات العينين العشوائية
     if (t > nextGaze) {
-      gazeTX = (Math.random() - 0.5) * 8 * s;
-      gazeTY = (Math.random() - 0.5) * 4 * s;
+      gazeTX = (Math.random() - 0.5) * 6 * s;
+      gazeTY = (Math.random() - 0.5) * 3 * s;
       nextGaze = t + 1400 + Math.random() * 2600;
     }
     var thinking = mode === 'thinking';
-    var gx = thinking ? 5 * s : gazeTX;
-    var gy = thinking ? -6 * s : gazeTY;
+    var gx = thinking ? 4 * s : gazeTX;
+    var gy = thinking ? -4 * s : gazeTY;
     gazeX += (gx - gazeX) * 0.12;
     gazeY += (gy - gazeY) * 0.12;
 
-    // أنيميشن الرمش
     if (blinkStart < 0 && t > nextBlink) blinkStart = t;
     var blink = 1;
     if (blinkStart >= 0) {
@@ -621,44 +600,39 @@
       else blink = 1 - 0.95 * Math.sin(Math.PI * ph);
     }
 
-    // إحداثيات ومقاسات العيون المماثلة للصورة
-    var eyeSpacing = 24 * s;
-    var eyeY = cy - 2 * s;
-    var radiusX = 14 * s;
-    var radiusY = 17 * s;
+    var eyeSpacing = 20 * s;
+    var eyeY = cy - 4 * s;
+    var radiusX = 12 * s;
+    var radiusY = 15 * s;
 
-    var browW = 20 * s;
-    var browH = 9 * s;
-    var browY = eyeY - radiusY - 8 * s;
+    var browW = 18 * s;
+    var browH = 7 * s;
+    var browY = eyeY - radiusY - 6 * s;
 
-    var smile = 14 * s, open = 0;
+    var smile = 11 * s, open = 0;
 
     if (mode === 'speaking') {
-      smile = (12 + level * 6) * s;
-      open = level * 12 * s;
+      smile = (10 + level * 5) * s;
+      open = level * 10 * s;
     }
 
     if (mode === 'sleep') {
-      // رسم العين المغلقة في حالة التوقف
       drawRealisticEye(cx - eyeSpacing, eyeY, radiusX, radiusY, 0, 0, 0.05);
       drawRealisticEye(cx + eyeSpacing, eyeY, radiusX, radiusY, 0, 0, 0.05);
-      drawEyebrow(cx - eyeSpacing, browY + 4 * s, browW, browH * 0.7, 0.05, accentColor);
-      drawEyebrow(cx + eyeSpacing, browY + 4 * s, browW, browH * 0.7, -0.05, accentColor);
-      mouth(cx, cy + 24 * s, s, 0, 10 * s, accentColor);
+      drawEyebrow(cx - eyeSpacing, browY + 3 * s, browW, browH * 0.7, 0.05, accentColor);
+      drawEyebrow(cx + eyeSpacing, browY + 3 * s, browW, browH * 0.7, -0.05, accentColor);
+      mouth(cx, eyeY + radiusY + 8 * s, s, 0, 8 * s, accentColor);
     } else {
-      // العينان المكتملتان
       drawRealisticEye(cx - eyeSpacing, eyeY, radiusX, radiusY, gazeX, gazeY, blink);
       drawRealisticEye(cx + eyeSpacing, eyeY, radiusX, radiusY, gazeX, gazeY, blink);
 
-      // الحواجب المرتفعة والتفاعلية
-      var browAngleLeft = -0.12 + (gazeY * 0.01);
-      var browAngleRight = 0.12 - (gazeY * 0.01);
+      var browAngleLeft = -0.1 + (gazeY * 0.01);
+      var browAngleRight = 0.1 - (gazeY * 0.01);
 
       drawEyebrow(cx - eyeSpacing + gazeX * 0.3, browY + gazeY * 0.3, browW, browH, browAngleLeft, accentColor);
       drawEyebrow(cx + eyeSpacing + gazeX * 0.3, browY + gazeY * 0.3, browW, browH, browAngleRight, accentColor);
 
-      // الفم
-      mouth(cx + gazeX * 0.2, cy + 24 * s, s, open, smile, accentColor);
+      mouth(cx + gazeX * 0.2, eyeY + radiusY + 8 * s, s, open, smile, accentColor);
     }
 
     hintEl.style.opacity = (mode === 'sleep' && !panelOpen) ? '1' : '0';
